@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carteira Digital · Investimentos</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="auth">
+  <form id="auth-form" class="card authbox">
+    <h1>💼 Carteira Digital</h1>
+    <p class="muted" id="auth-sub">Entre para ver os seus investimentos.</p>
+    <input id="a-nome" placeholder="Nome completo" hidden>
+    <input id="a-email" type="email" placeholder="Email" required>
+    <input id="a-senha" type="password" placeholder="Palavra-passe (mín. 6)" required>
+    <p class="err" id="a-erro"></p>
+    <button id="a-ok">Entrar</button>
+    <button type="button" class="ghost" id="auth-toggle">Criar conta (recebe 300.000 Kz)</button>
+  </form>
+</section>
+<div id="app" hidden>
+<header>
+  <div><h1>💼 Carteira Digital</h1><small id="timer">A carregar…</small></div>
+  <div class="row"><span class="muted">👤 <b id="user"></b></span><button class="ghost" id="reset">Reiniciar</button><button class="ghost" id="sair">Sair</button></div>
+</header>
+<main>
+  <section class="cards">
+    <div class="card"><span>Saldo disponível</span><b id="saldo">—</b></div>
+    <div class="card"><span>Total investido</span><b id="investido">—</b></div>
+    <div class="card"><span>Valor actual</span><b id="atual">—</b></div>
+    <div class="card"><span>Lucro / Prejuízo</span><b id="lucro">—</b></div>
+    <div class="card"><span>Património total</span><b id="patrimonio">—</b></div>
+  </section>
+
+  <h2>Evolução do património</h2>
+  <div class="card" id="grafico"></div>
+
+  <h2>Mercado</h2>
+  <div class="tabs" id="tabs"></div>
+  <section class="grid" id="mercado"></section>
+
+  <h2>Os meus investimentos</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Activo</th><th>Investido</th><th>Valor actual</th><th>Lucro</th><th>Evolução</th><th></th></tr></thead>
+      <tbody id="meus"></tbody>
+    </table>
+  </div>
+</main>
+</div>
+
+<dialog id="modal">
+  <form method="dialog" id="form">
+    <h3 id="m-titulo"></h3>
+    <p class="muted">Preço actual: <b id="m-preco"></b><br>Saldo disponível: <b id="m-saldo"></b></p>
+    <label>Valor a investir (Kz) — mínimo 5.000
+      <input type="number" id="m-valor" min="5000" step="100" value="5000" required></label>
+    <p class="muted">Receberá ≈ <b id="m-un"></b> unidades</p>
+    <p class="err" id="m-erro"></p>
+    <div class="row"><button type="button" class="ghost" id="m-cancel">Cancelar</button><button type="submit">Investir</button></div>
+  </form>
+</dialog>
+<script src="app.js"></script>
+</body>
+</html>
