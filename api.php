@@ -22,6 +22,7 @@ if($a==='invest'||$a==='sell'){
     $h=q("SELECT units,invested FROM holdings WHERE user_id=? AND sym=?",'is',$uid,$sym);
     if(!$h){$d->rollback();fail('Não tens este activo');}
     $val=$h[0]['units']*$price;
+    if($amt>$val&&$amt<=$val*1.02)$amt=$val; // tolerância: o preço mexe entre abrir o modal e confirmar
     if($amt<=0||$amt>$val+0.01){$d->rollback();fail('Valor de venda inválido');}
     $f=min(1,$amt/$val);
     if($f>0.9999){q("DELETE FROM holdings WHERE user_id=? AND sym=?",'is',$uid,$sym);$amt=$val;}

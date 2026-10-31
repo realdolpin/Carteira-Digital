@@ -45,7 +45,7 @@ function open(sym,mode){
   const a=px(sym),h=S.holdings.find(x=>x.sym===sym),max=mode==='i'?+S.user.balance:(h?h.units*a.price:0);
   cur={sym,mode,max}; $('#mt').textContent=(mode==='i'?'Investir em ':'Vender ')+a.name;
   $('#ms').textContent=(mode==='i'?'Saldo disponível: ':'Disponível para vender: ')+fmt(max);
-  $('#mh').textContent=mode==='i'?'Mínimo: 10.000 Kz':''; $('#amt').value=''; $('#amt').min=mode==='i'?10000:1;
+  $('#mh').textContent=mode==='i'?'Mínimo: 10.000 Kz':''; $('#amt').value=''; $('#amt').min=mode==='i'?10000:1; $('#amt').step='any';
   $('#mb').textContent=mode==='i'?'Confirmar investimento':'Confirmar venda';
   $('#quick').innerHTML=[25,50,100].map(p=>`<button type="button" data-p="${p}">${p}%</button>`).join('');
   $('#modal').hidden=false; $('#amt').focus();
