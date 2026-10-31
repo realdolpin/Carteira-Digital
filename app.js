@@ -1,138 +1,67 @@
-const $ = s => document.querySelector(s);
-const kz = n => Number(n).toLocaleString('pt-AO', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' Kz';
-const pct = n => (n >= 0 ? '+' : '') + n.toFixed(3) + '%';
-const cls = n => n >= 0 ? 'up' : 'down';
-let S = null, filtro = 'Todos', ativoSel = null;
+const CATS={cripto:'Criptomoedas',tesouro:'Tesouro',imoveis:'Imóveis',bolsa:'Bolsa'};
+const COL={cripto:'#e9b44c',tesouro:'#5fb7a5',imoveis:'#e4572e',bolsa:'#7d9bd6'};
+const GLOSS=[['Acção','Parte do capital de uma empresa. Ao comprar, tornas-te sócio.'],['Dividendo','Parte do lucro que a empresa distribui aos accionistas.'],['Obrigação do Tesouro','Empréstimo ao Estado a médio/longo prazo, com juros.'],['Bilhete do Tesouro','Título do Estado de curto prazo, de baixo risco.'],['BODIVA','Bolsa de Dívida e Valores de Angola, onde se negoceiam títulos.'],['Criptomoeda','Moeda digital descentralizada, como Bitcoin e Ethereum.'],['Fundo imobiliário','Investes em imóveis sem comprar um inteiro e recebes rendas.'],['Volatilidade','Quanto o preço sobe e desce. Cripto costuma ser a mais alta.'],['Liquidez','Rapidez com que transformas um activo em dinheiro.'],['Diversificação','Repartir o dinheiro por vários activos para reduzir o risco.'],['Corretora','Intermediária autorizada a comprar e vender activos por ti.'],['Capitalização','Valor total de mercado de um activo ou empresa.']];
+const $=s=>document.querySelector(s), fmt=n=>Math.round(n).toLocaleString('pt-PT')+' Kz';
+const pct=n=>(n>=0?'+':'')+n.toFixed(2).replace('.',',')+'%';
+let S=null,filter='todos',prev={},cur=null;
 
-function spark(pts) {
-  if (!pts || pts.length < 2) return '<svg class="spark"></svg>';
-  const mn = Math.min(...pts), mx = Math.max(...pts), r = (mx - mn) || 1;
-  const d = pts.map((p, i) => `${(i / (pts.length - 1) * 100).toFixed(1)},${(30 - (p - mn) / r * 28).toFixed(1)}`).join(' ');
-  const c = pts[pts.length - 1] >= pts[0] ? '#22c55e' : '#ef4444';
-  return `<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none"><polyline points="${d}" fill="none" stroke="${c}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+async function api(body){
+  const r=await fetch('api.php',{method:'POST',body:new URLSearchParams(body||{a:'state'})});
+  if(r.status===401){location='index.php';return}
+  const j=await r.json(); if(!r.ok) throw new Error(j.error); return j;
 }
-
-async function api(acao, body) {
-  const r = await fetch('api.php?a=' + acao, body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {});
-  const txt = await r.text();
-  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor (verifique o PHP/MySQL): ' + txt.replace(/<[^>]+>/g, ' ').trim().slice(0, 300)); }
-  if (r.status === 401) { mostrarAuth(); throw new Error('auth'); }
-  if (!r.ok) throw new Error(j.erro || 'Erro');
-  return j;
+const px=s=>S.assets.find(a=>a.sym===s);
+function render(){
+  const H=S.holdings.map(h=>{const a=px(h.sym);return{...h,a,val:h.units*a.price}});
+  const val=H.reduce((t,h)=>t+h.val,0), inv=H.reduce((t,h)=>t+h.invested,0), bal=+S.user.balance, tot=bal+val;
+  $('#uname').textContent=S.user.name; $('#total').textContent=fmt(tot);
+  $('#bal').textContent=fmt(bal); $('#val').textContent=fmt(val);
+  const g=val-inv, gc=$('#gain'); gc.textContent=(g>=0?'+':'')+fmt(g); gc.className=g>=0?'up':'dn';
+  $('#pl').textContent=inv? 'Rendimento total: '+pct(g/inv*100):'Ainda sem investimentos. Escolhe um activo no mercado.';
+  // alocação
+  const by={}; H.forEach(h=>by[h.a.cat]=(by[h.a.cat]||0)+h.val);
+  let acc=0,stops=[],lg='';
+  Object.keys(CATS).forEach(c=>{const p=tot?(by[c]||0)/tot*100:0; if(p>0){stops.push(`${COL[c]} ${acc}% ${acc+p}%`);acc+=p}
+    lg+=`<div><i style="background:${COL[c]}"></i>${CATS[c]}<b>${p.toFixed(1).replace('.',',')}%</b></div>`});
+  lg+=`<div><i style="background:#2b3d57"></i>Saldo livre<b>${(tot?bal/tot*100:100).toFixed(1).replace('.',',')}%</b></div>`;
+  $('#donut').style.background=`conic-gradient(${stops.concat(`#2b3d57 ${acc}% 100%`).join(',')})`;
+  $('#invPct').textContent=Math.round(acc)+'%'; $('#legend').innerHTML=lg;
+  // mercado
+  $('#chips').innerHTML=['todos',...Object.keys(CATS)].map(c=>`<button class="${c===filter?'on':''}" data-f="${c}">${CATS[c]||'Todos'}</button>`).join('');
+  $('#list').innerHTML=S.assets.filter(a=>filter==='todos'||a.cat===filter).map(a=>{
+    const ch=(a.price/a.open_price-1)*100, fl=prev[a.sym]&&prev[a.sym]!==a.price?(a.price>prev[a.sym]?'fu':'fd'):'';
+    return `<div class="asset ${fl}"><i class="dot" style="background:${COL[a.cat]}"></i><div class="nm"><b>${a.name}</b><small>${a.sym} · ${CATS[a.cat]}</small></div>
+    <div class="pr"><b>${fmt(a.price)}</b><small class="${ch>=0?'up':'dn'}">${pct(ch)}</small></div><button class="btn sm" data-i="${a.sym}">Investir</button></div>`}).join('');
+  // carteira
+  $('#plist').innerHTML=H.length?H.map(h=>{const p=(h.val/h.invested-1)*100;
+    return `<div class="asset"><i class="dot" style="background:${COL[h.a.cat]}"></i><div class="nm"><b>${h.a.name}</b><small>${h.units.toFixed(h.units<1?6:2)} un. · ${(h.val/tot*100).toFixed(1).replace('.',',')}% do património</small></div>
+    <div class="pr"><b>${fmt(h.val)}</b><small class="${p>=0?'up':'dn'}">${pct(p)}</small></div>
+    <div class="acts"><button class="btn sm" data-i="${h.sym}">+</button><button class="btn sm ghost" data-s="${h.sym}">Vender</button></div></div>`}).join('')
+    :'<p class="empty">A tua carteira está vazia. Investe a partir de 10.000 Kz no separador Mercado.</p>';
+  S.assets.forEach(a=>prev[a.sym]=a.price);
 }
-
-function render() {
-  $('#auth').hidden = true; $('#app').hidden = false;
-  $('#user').textContent = S.nome; $('#grafico').innerHTML = grafico(S.patrimonio_hist);
-  $('#saldo').textContent = kz(S.saldo);
-  $('#investido').textContent = kz(S.investido);
-  $('#atual').textContent = kz(S.valor_atual);
-  $('#lucro').innerHTML = `<span class="${cls(S.lucro)}">${kz(S.lucro)}</span>`;
-  $('#patrimonio').textContent = kz(S.patrimonio);
-
-  const cats = ['Todos', ...new Set(S.ativos.map(a => a.categoria))];
-  $('#tabs').innerHTML = cats.map(c => `<button class="tab ${c === filtro ? 'on' : ''}" data-c="${c}">${c}</button>`).join('');
-  $('#mercado').innerHTML = S.ativos.filter(a => filtro === 'Todos' || a.categoria === filtro).map(a => `
-    <div class="asset">
-      <span class="cat">${a.categoria}</span>
-      <span class="nm">${a.nome} <small>(${a.simbolo})</small></span>
-      <span class="pr">${kz(a.preco)}</span>
-      <span class="${cls(a.variacao)}">${pct(a.variacao)} desde o início</span>
-      ${spark(a.historico)}
-      <button data-i="${a.id}">Investir</button>
-    </div>`).join('');
-
-  const porAtivo = Object.fromEntries(S.ativos.map(a => [a.id, a]));
-  $('#meus').innerHTML = S.investimentos.length ? S.investimentos.map(i => `
-    <tr style="${i.estado === 'resgatado' ? 'opacity:.5' : ''}">
-      <td><b>${i.nome}</b><small>${i.categoria} · ${Number(i.unidades).toFixed(6)} un. · ${new Date(i.criado_em * 1000).toLocaleString('pt-AO')}</small></td>
-      <td>${kz(i.valor)}</td>
-      <td>${kz(i.valor_atual)}</td>
-      <td class="${cls(i.lucro)}">${kz(i.lucro)}<small>${pct(i.lucro_pct)}</small></td>
-      <td style="width:130px">${i.estado === 'ativo' ? spark(porAtivo[i.ativo_id]?.historico) : '<small>Resgatado</small>'}</td>
-      <td>${i.estado === 'ativo' ? `<button class="sell" data-r="${i.id}">Resgatar</button>` : ''}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="muted">Ainda não tem investimentos. Escolha um activo acima.</td></tr>';
-  if ($('#modal').open) calcModal();
+async function tick(){try{S=await api();render()}catch(e){}}
+function open(sym,mode){
+  const a=px(sym),h=S.holdings.find(x=>x.sym===sym),max=mode==='i'?+S.user.balance:(h?h.units*a.price:0);
+  cur={sym,mode,max}; $('#mt').textContent=(mode==='i'?'Investir em ':'Vender ')+a.name;
+  $('#ms').textContent=(mode==='i'?'Saldo disponível: ':'Disponível para vender: ')+fmt(max);
+  $('#mh').textContent=mode==='i'?'Mínimo: 10.000 Kz':''; $('#amt').value=''; $('#amt').min=mode==='i'?10000:1;
+  $('#mb').textContent=mode==='i'?'Confirmar investimento':'Confirmar venda';
+  $('#quick').innerHTML=[25,50,100].map(p=>`<button type="button" data-p="${p}">${p}%</button>`).join('');
+  $('#modal').hidden=false; $('#amt').focus();
 }
-
-async function carregar() {
-  try { S = await api('estado'); render(); } catch (e) { if (e.message !== 'auth') { $('#timer').textContent = '⚠ ' + e.message; if (!S) { mostrarAuth(); $('#a-erro').textContent = '⚠ ' + e.message; } } }
-}
-
-function atualizarTimer() {
-  if (!S) return;
-  const rest = Math.max(0, S.proxima - (S.agora + (Date.now() - S.recebido) / 1000));
-  $('#timer').textContent = `Preços actualizados a cada minuto · próxima actualização em ${Math.ceil(rest)}s`;
-}
-
-function calcModal() {
-  const v = parseFloat($('#m-valor').value) || 0;
-  $('#m-preco').textContent = kz(ativoSel.preco);
-  $('#m-saldo').textContent = kz(S.saldo);
-  $('#m-un').textContent = (v / ativoSel.preco).toFixed(8);
-}
-
-document.addEventListener('click', async e => {
-  const t = e.target;
-  if (t.dataset.c) { filtro = t.dataset.c; render(); }
-  if (t.dataset.i) {
-    ativoSel = S.ativos.find(a => a.id == t.dataset.i);
-    $('#m-titulo').textContent = `Investir em ${ativoSel.nome}`;
-    $('#m-valor').value = 5000; $('#m-erro').textContent = '';
-    calcModal(); $('#modal').showModal();
-  }
-  if (t.dataset.r && confirm('Resgatar este investimento ao preço actual?')) {
-    try { S = await api('resgatar', {id: +t.dataset.r}); S.recebido = Date.now(); render(); } catch (er) { alert(er.message); }
-  }
+function toast(m,bad){const t=$('#toast');t.textContent=m;t.className='toast show'+(bad?' bad':'');setTimeout(()=>t.className='toast',2800)}
+document.addEventListener('click',e=>{
+  const t=e.target; if(t.dataset.f){filter=t.dataset.f;render()}
+  if(t.dataset.i)open(t.dataset.i,'i'); if(t.dataset.s)open(t.dataset.s,'s');
+  if(t.dataset.p)$('#amt').value=Math.floor(cur.max*t.dataset.p/100);
+  if(t.dataset.t){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b===t));
+    ['market','port','gloss'].forEach(s=>$('#'+s).hidden=s!==t.dataset.t)}
+  if(t.id==='mc'||t.id==='modal')$('#modal').hidden=true;
 });
-$('#m-valor').addEventListener('input', calcModal);
-$('#m-cancel').onclick = () => $('#modal').close();
-$('#form').addEventListener('submit', async e => {
-  e.preventDefault();
-  try {
-    S = await api('investir', {ativo_id: ativoSel.id, valor: parseFloat($('#m-valor').value)});
-    S.recebido = Date.now(); $('#modal').close(); render();
-  } catch (er) { $('#m-erro').textContent = er.message; }
-});
-$('#reset').onclick = async () => {
-  if (confirm('Repor saldo de 300.000 Kz e apagar todos os investimentos?')) { S = await api('reiniciar', {}); S.recebido = Date.now(); render(); }
-};
-
-(async function () {
-  await carregar(); if (S) S.recebido = Date.now();
-  setInterval(async () => { await carregar(); if (S) S.recebido = Date.now(); }, 10000);
-  setInterval(atualizarTimer, 1000);
-})();
-
-// ---------- Gráfico do património ----------
-function grafico(p) {
-  if (!p || p.length < 2) return '<span class="muted">O gráfico aparece após o primeiro minuto de simulação…</span>';
-  const v = p.map(x => x.v), mn = Math.min(...v), mx = Math.max(...v), r = (mx - mn) || 1;
-  const pts = v.map((y, i) => `${(i / (v.length - 1) * 600).toFixed(1)},${(150 - (y - mn) / r * 140).toFixed(1)}`);
-  const c = v[v.length - 1] >= v[0] ? '#22c55e' : '#ef4444';
-  const hora = t => new Date(t * 1000).toLocaleTimeString('pt-AO', {hour: '2-digit', minute: '2-digit'});
-  return `<svg viewBox="0 0 600 155" preserveAspectRatio="none" style="width:100%;height:170px">
-    <polygon points="0,155 ${pts.join(' ')} 600,155" fill="${c}" opacity=".13"/>
-    <polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
-    <div class="legend"><span>${hora(p[0].t)} · ${kz(v[0])}</span><span>Mín ${kz(mn)} · Máx ${kz(mx)}</span><span>${hora(p[p.length - 1].t)} · ${kz(v[v.length - 1])}</span></div>`;
-}
-
-// ---------- Autenticação ----------
-let modoReg = false;
-function mostrarAuth() { $('#auth').hidden = false; $('#app').hidden = true; }
-$('#auth-toggle').onclick = () => {
-  modoReg = !modoReg;
-  $('#a-nome').hidden = !modoReg; $('#a-nome').required = modoReg;
-  $('#a-ok').textContent = modoReg ? 'Criar conta' : 'Entrar';
-  $('#auth-toggle').textContent = modoReg ? 'Já tenho conta' : 'Criar conta (recebe 300.000 Kz)';
-  $('#auth-sub').textContent = modoReg ? 'Crie a sua conta e comece com 300.000 Kz.' : 'Entre para ver os seus investimentos.';
-  $('#a-erro').textContent = '';
-};
-$('#auth-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  try {
-    S = await api(modoReg ? 'registar' : 'entrar', {nome: $('#a-nome').value, email: $('#a-email').value, senha: $('#a-senha').value});
-    S.recebido = Date.now(); $('#a-senha').value = ''; render();
-  } catch (er) { if (er.message !== 'auth') $('#a-erro').textContent = er.message; }
-});
-$('#sair').onclick = async () => { await fetch('api.php?a=sair', {method: 'POST'}); S = null; mostrarAuth(); };
+$('#mf').onsubmit=async e=>{e.preventDefault();
+  try{S=await api({a:cur.mode==='i'?'invest':'sell',sym:cur.sym,amount:$('#amt').value});
+    $('#modal').hidden=true;render();toast(cur.mode==='i'?'Investimento realizado':'Venda realizada')}
+  catch(err){toast(err.message,true)}};
+$('#gl').innerHTML=GLOSS.map(g=>`<dt>${g[0]}</dt><dd>${g[1]}</dd>`).join('');
+tick(); setInterval(tick,3000);
