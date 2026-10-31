@@ -14,6 +14,7 @@ function db(){
   $d->query("CREATE TABLE IF NOT EXISTS users(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(80),email VARCHAR(120) UNIQUE,pass VARCHAR(255),balance DOUBLE DEFAULT 300000,created DATETIME DEFAULT CURRENT_TIMESTAMP)");
   $d->query("CREATE TABLE IF NOT EXISTS assets(sym VARCHAR(12) PRIMARY KEY,name VARCHAR(60),cat VARCHAR(10),price DOUBLE,open_price DOUBLE,upd DATETIME DEFAULT CURRENT_TIMESTAMP)");
   $d->query("CREATE TABLE IF NOT EXISTS holdings(user_id INT,sym VARCHAR(12),units DOUBLE,invested DOUBLE,PRIMARY KEY(user_id,sym))");
+  $d->query("CREATE TABLE IF NOT EXISTS transfers(id INT AUTO_INCREMENT PRIMARY KEY,from_id INT,to_id INT,sym VARCHAR(12),units DOUBLE,value DOUBLE,created DATETIME DEFAULT CURRENT_TIMESTAMP)");
   if(!$d->query("SELECT 1 FROM assets LIMIT 1")->num_rows){
     $seed=[ // símbolo, nome, categoria, preço em Kz (simulado)
       ['BTC','Bitcoin','cripto',95000000],['ETH','Ethereum','cripto',3200000],

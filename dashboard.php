@@ -19,14 +19,16 @@ if(empty($_SESSION['uid'])){header('Location: index.php');exit;}
     <div><p class="muted">Lucro / perda</p><b id="gain"></b></div>
   </section>
   <nav class="tabs" id="tabs">
-    <button data-t="market" class="on">Mercado</button><button data-t="port">Minha carteira</button><button data-t="gloss">Glossário</button>
+    <button data-t="market" class="on">Mercado</button><button data-t="port">Minha carteira</button><button data-t="hist">Transferências</button><button data-t="gloss">Glossário</button>
   </nav>
   <section id="market"><div class="chips" id="chips"></div><div id="list"></div></section>
   <section id="port" hidden><div id="plist"></div></section>
+  <section id="hist" hidden><div id="hlist"></div></section>
   <section id="gloss" hidden><dl id="gl"></dl></section>
 </main>
 <div class="modal" id="modal" hidden><form id="mf">
   <h3 id="mt"></h3><p class="muted" id="ms"></p>
+  <label id="emL" hidden>E-mail do destinatário<input id="em" type="email" autocomplete="off"></label>
   <label>Valor em Kz<input id="amt" type="number" step="100" required></label>
   <div class="quick" id="quick"></div><p class="muted" id="mh"></p>
   <div class="row"><button type="button" class="btn ghost" id="mc">Cancelar</button><button class="btn" id="mb"></button></div>

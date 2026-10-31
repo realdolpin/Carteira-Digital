@@ -10,6 +10,7 @@ async function api(body){
   if(r.status===401){location='index.php';return}
   const j=await r.json(); if(!r.ok) throw new Error(j.error); return j;
 }
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const px=s=>S.assets.find(a=>a.sym===s);
 function render(){
   const H=S.holdings.map(h=>{const a=px(h.sym);return{...h,a,val:h.units*a.price}});
@@ -36,32 +37,38 @@ function render(){
   $('#plist').innerHTML=H.length?H.map(h=>{const p=(h.val/h.invested-1)*100;
     return `<div class="asset"><i class="dot" style="background:${COL[h.a.cat]}"></i><div class="nm"><b>${h.a.name}</b><small>${h.units.toFixed(h.units<1?6:2)} un. · ${(h.val/tot*100).toFixed(1).replace('.',',')}% do património</small></div>
     <div class="pr"><b>${fmt(h.val)}</b><small class="${p>=0?'up':'dn'}">${pct(p)}</small></div>
-    <div class="acts"><button class="btn sm" data-i="${h.sym}">+</button><button class="btn sm ghost" data-s="${h.sym}">Vender</button></div></div>`}).join('')
+    <div class="acts"><button class="btn sm" data-i="${h.sym}">+</button><button class="btn sm ghost" data-s="${h.sym}">Vender</button><button class="btn sm ghost" data-x="${h.sym}">Transferir</button></div></div>`}).join('')
     :'<p class="empty">A tua carteira está vazia. Investe a partir de 10.000 Kz no separador Mercado.</p>';
+  const T=S.transfers||[];
+  $('#hlist').innerHTML=T.length?T.map(t=>{const s=+t.sent, d=new Date(String(t.created).replace(' ','T')).toLocaleString('pt-PT');
+    return `<div class="asset"><i class="dot" style="background:${s?'#e4572e':'#5fb7a5'}"></i><div class="nm"><b>${s?'Enviado para ':'Recebido de '}${esc(t.other)}</b><small>${esc(t.asset)} · ${(+t.units).toFixed(+t.units<1?6:2)} un. · ${d}</small></div>
+    <div class="pr"><b class="${s?'dn':'up'}">${s?'-':'+'}${fmt(+t.value)}</b></div></div>`}).join(''):'<p class="empty">Ainda não fizeste nem recebeste transferências.</p>';
   S.assets.forEach(a=>prev[a.sym]=a.price);
 }
 async function tick(){try{S=await api();render()}catch(e){}}
 function open(sym,mode){
   const a=px(sym),h=S.holdings.find(x=>x.sym===sym),max=mode==='i'?+S.user.balance:(h?h.units*a.price:0);
-  cur={sym,mode,max}; $('#mt').textContent=(mode==='i'?'Investir em ':'Vender ')+a.name;
-  $('#ms').textContent=(mode==='i'?'Saldo disponível: ':'Disponível para vender: ')+fmt(max);
-  $('#mh').textContent=mode==='i'?'Mínimo: 10.000 Kz':''; $('#amt').value=''; $('#amt').min=mode==='i'?10000:1; $('#amt').step='any';
-  $('#mb').textContent=mode==='i'?'Confirmar investimento':'Confirmar venda';
+  cur={sym,mode,max}; $('#mt').textContent={i:'Investir em ',s:'Vender ',x:'Transferir '}[mode]+a.name;
+  $('#ms').textContent={i:'Saldo disponível: ',s:'Disponível para vender: ',x:'Disponível para transferir: '}[mode]+fmt(max);
+  $('#mh').textContent=mode==='i'?'Mínimo: 10.000 Kz':mode==='x'?'O destinatário recebe as unidades e o preço de compra é mantido.':'';
+  $('#emL').hidden=mode!=='x'; $('#em').required=mode==='x'; $('#em').value='';
+  $('#amt').value=''; $('#amt').min=mode==='i'?10000:1; $('#amt').step='any';
+  $('#mb').textContent={i:'Confirmar investimento',s:'Confirmar venda',x:'Confirmar transferência'}[mode];
   $('#quick').innerHTML=[25,50,100].map(p=>`<button type="button" data-p="${p}">${p}%</button>`).join('');
-  $('#modal').hidden=false; $('#amt').focus();
+  $('#modal').hidden=false; (mode==='x'?$('#em'):$('#amt')).focus();
 }
 function toast(m,bad){const t=$('#toast');t.textContent=m;t.className='toast show'+(bad?' bad':'');setTimeout(()=>t.className='toast',2800)}
 document.addEventListener('click',e=>{
   const t=e.target; if(t.dataset.f){filter=t.dataset.f;render()}
-  if(t.dataset.i)open(t.dataset.i,'i'); if(t.dataset.s)open(t.dataset.s,'s');
+  if(t.dataset.i)open(t.dataset.i,'i'); if(t.dataset.s)open(t.dataset.s,'s'); if(t.dataset.x)open(t.dataset.x,'x');
   if(t.dataset.p)$('#amt').value=Math.floor(cur.max*t.dataset.p/100);
   if(t.dataset.t){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b===t));
-    ['market','port','gloss'].forEach(s=>$('#'+s).hidden=s!==t.dataset.t)}
+    ['market','port','hist','gloss'].forEach(s=>$('#'+s).hidden=s!==t.dataset.t)}
   if(t.id==='mc'||t.id==='modal')$('#modal').hidden=true;
 });
 $('#mf').onsubmit=async e=>{e.preventDefault();
-  try{S=await api({a:cur.mode==='i'?'invest':'sell',sym:cur.sym,amount:$('#amt').value});
-    $('#modal').hidden=true;render();toast(cur.mode==='i'?'Investimento realizado':'Venda realizada')}
+  try{S=await api({a:{i:'invest',s:'sell',x:'transfer'}[cur.mode],sym:cur.sym,amount:$('#amt').value,email:$('#em').value});
+    $('#modal').hidden=true;render();toast({i:'Investimento realizado',s:'Venda realizada',x:'Transferência enviada'}[cur.mode])}
   catch(err){toast(err.message,true)}};
 $('#gl').innerHTML=GLOSS.map(g=>`<dt>${g[0]}</dt><dd>${g[1]}</dd>`).join('');
 tick(); setInterval(tick,3000);
